@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.concurrent.ListenableFuture;
 
@@ -21,15 +22,28 @@ public class StudyApplication {
     @Service
     public static class MyService {
         /*
-         내부적으로 AOP를 이용해 복잡한 로직이 실행된다.
-         비동기 작업은 return값으로 바로 결과를 줄 수 없다. (Future 혹은 Callback을 이용해야 한다.)
+         기본적으로 SimpleAsyncTaskExecutor를 사용한다. 스레드를 계속 새로 만들어 사용하기 때문에 비효율적이다.
          */
         @Async
+//        @Async("tp")
         public ListenableFuture<String> hello() throws InterruptedException {
             log.info("hello()");
             Thread.sleep(1000);
             return new AsyncResult<>("Hello");
         }
+    }
+
+    @Bean
+    ThreadPoolTaskExecutor tp() {
+        ThreadPoolTaskExecutor te = new ThreadPoolTaskExecutor();
+        // 1) 스레드 풀을 해당 개수까지 기본적으로 생성함. 처음 요청이 들어올 때 poll size만큼 생성한다.
+        te.setCorePoolSize(10);
+        // 2) 지금 당장은 Core 스레드를 모두 사용중일때, 큐에 만들어 대기시킨다.
+        te.setQueueCapacity(50);
+        // 3) 대기하는 작업이 큐에 꽉 찰 경우, 풀을 해당 개수까지 더 생성한다.
+        te.setMaxPoolSize(100);
+        te.setThreadNamePrefix("myThread");
+        return te;
     }
 
     public static void main(String[] args) {
