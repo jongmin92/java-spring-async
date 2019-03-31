@@ -11,12 +11,18 @@ public class FutureEx {
         void onSuccess(String result);
     }
 
+    interface ExceptionCallback {
+        void onError(Throwable t);
+    }
+
     public static class CallbackFutureTask extends FutureTask<String> {
         SuccessCallback sc;
+        ExceptionCallback ec;
 
-        public CallbackFutureTask(Callable<String> callable, SuccessCallback sc) {
+        public CallbackFutureTask(Callable<String> callable, SuccessCallback sc, ExceptionCallback ec) {
             super(callable);
             this.sc = Objects.requireNonNull(sc);
+            this.ec = Objects.requireNonNull(ec);
         }
 
         @Override
@@ -24,10 +30,15 @@ public class FutureEx {
             super.done();
             try {
                 this.sc.onSuccess(get());
+                /*
+                 InterruptedException은 예외긴 예외이지만, 현재 작업을 수행하지 말고 중단해라 라고 메시지를 보내는 용도이다.
+                 따라서 현재 스레드에 interrupt를 체크하고 종료한다.
+                 */
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                // 래핑된 에러를 빼내어 전달한다.
+                ec.onError(e.getCause());
             }
         }
     }
@@ -37,9 +48,12 @@ public class FutureEx {
 
         CallbackFutureTask f = new CallbackFutureTask(() -> {
             Thread.sleep(2000);
+            if (1 == 1) throw new RuntimeException("Async ERROR!!!");
             log.info("Async");
             return "Hello";
-        }, log::info);
+        },
+                s -> log.info("Result: {}", s),
+                e -> log.info("Error: {}", e.getMessage()));
 
         es.execute(f);
         es.shutdown();
