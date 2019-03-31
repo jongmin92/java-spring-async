@@ -2,26 +2,28 @@ package com.example.study;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /*
-자바의 `Future`를 잘 알아야 한다. 자바에서는 Future가 가장 기본이 되는 interface이다. 자바 1.5에서 등장했다.
-문서를 참고하면 Future라는건 비동기적인 작업을 수행하고난 결과를 나타내는 것이다. 비동기적인 무엇인가 연산 혹은 작업을 수행하고 그 결과를 갖고 있는 것이다. (비동기적인 작업을 수행한다는 것은 현재 내가 진행하고 있는 스레드가 아닌 별도의 스레드에서 작업을 수행하는 것이다. 같은 스레드에서는 메서드를 호출할 때는 리턴값을 받으면 되지만 비동기적으로 작업을 수행할 때는 결과값을 전달받을 수 있는 무언가의 interface가 필요하다.)
+callable은 runnable하고 다르게 값을 return 수 있다. 또한 예외가 발생했을 때, 예외가 발생했을 때 다 처리하지 않고 밖으로 던질 수 있다.
+Future를 통해서 비동기 결과의 값을 가져올 수 있지만 get 메서드를 호출하게 되면 비동기 작업이 완료될 때까지 해당 스레드가 blocking된다.
  */
 
 @Slf4j
 public class FutureEx {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
         ExecutorService es = Executors.newCachedThreadPool();
 
-        es.execute(() -> {
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {}
+        Future<String> f = es.submit(() -> {
+            Thread.sleep(2000);
             log.info("Async");
+            return "Hello";
         });
 
+        log.info(f.get());
         log.info("Exit");
     }
 }
