@@ -11,8 +11,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
-
-import java.util.concurrent.Future;
+import org.springframework.util.concurrent.ListenableFuture;
 
 @SpringBootApplication
 @EnableAsync
@@ -26,7 +25,7 @@ public class StudyApplication {
          비동기 작업은 return값으로 바로 결과를 줄 수 없다. (Future 혹은 Callback을 이용해야 한다.)
          */
         @Async
-        public Future<String> hello() throws InterruptedException {
+        public ListenableFuture<String> hello() throws InterruptedException {
             log.info("hello()");
             Thread.sleep(1000);
             return new AsyncResult<>("Hello");
@@ -47,9 +46,11 @@ public class StudyApplication {
     ApplicationRunner run() {
         return args -> {
             log.info("run()");
-            Future<String> res = myService.hello();
-            log.info("exit: {}", res.isDone());
-            log.info("result: {}", res.get());
+            ListenableFuture<String> f = myService.hello();
+            f.addCallback(s -> log.info(s), e-> log.info(e.getMessage()));
+            log.info("exit");
+
+            Thread.sleep(2000);
         };
     }
 }
