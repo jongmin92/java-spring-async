@@ -3,31 +3,18 @@ package com.example.study;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Bean;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.DeferredResult;
 
-import java.util.concurrent.Callable;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /*
- Servlet 3.0: 비동기 서블릿
-  - HTTP connection은 이미 논블록킹 IO
-  - 서블릿 요청 읽기, 응답 쓰기는 블록킹
-  - 비동기 작업 시작 즉시 서블릿 쓰레드 반납
-  - 비동기 작업이 완료되면 서블릿 쓰레드 재할당
-  - 비동기 서블릿 컨텍스트 이용 (AsyncContext)
- Servlet 3.1: 논블록킹 IO
-  - 논블록킹 서블릿 요청, 응답 처리
-  - Callback
-
-  쓰레드가 블록되는 상황은 CPU와 메모리 자원을 많이 먹는다. 컨텍스트 스위칭이 일어나기 때문.
-  기본적으로 블록이 되면 wating 상태로 빠지고 추후 running 상태로 변경되면서 컨텍스트 스위칭이 2번 일어나면서 불필요하게
-  CPU 자원이 소모된다.
-  Java InputStream과 OutputStream은 블록킹 방식이다. RequestHttpServletRequest, RequestHttpServletResponse는
-  InputSream과 OutputStream을 사용하기 때문에 서블릿은 기본적으로 블로킹 IO 방식이다.
+ DeferredResult: Spring 3.2 부터 사용 가능하다. 지연된 결과. 외부의 이벤트 혹은 클라이언트 요청에 의해서
+ 지연되어 있는 HTTP 요청에 대한 응답을 나중에 써줄 수 있는 기술
+ 워커 스레드를 별도로 만들어 대기하지 않고도 나중에 응답을 받을 수 있다.
  */
 
 @SpringBootApplication
@@ -37,31 +24,29 @@ public class StudyApplication {
 
     @RestController
     public static class MyController {
-        @GetMapping("/callable")
-        public Callable<String> callable() {
-            log.info("callable");
-            return () -> {
-                log.info("async");
-                Thread.sleep(2000);
-                return "hello";
-            };
+        Queue<DeferredResult<String>> results = new ConcurrentLinkedQueue<>();
+
+        @GetMapping("/dr")
+        public DeferredResult<String> dr() {
+            log.info("dr");
+            DeferredResult<String> dr = new DeferredResult<>();
+            results.add(dr);
+            return dr;
         }
 
-//        public String callable() throws InterruptedException {
-//            log.info("async");
-//            Thread.sleep(2000);
-//            return "hello";
-//        }
-    }
+        @GetMapping("/dr/count")
+        public String drCount() {
+            return String.valueOf(results.size());
+        }
 
-    @Bean
-    ThreadPoolTaskExecutor tp() {
-        ThreadPoolTaskExecutor te = new ThreadPoolTaskExecutor();
-        te.setCorePoolSize(100);
-        te.setQueueCapacity(50);
-        te.setMaxPoolSize(200);
-        te.setThreadNamePrefix("workThread");
-        return te;
+        @GetMapping("/dr/event")
+        public String drEvent(String msg) {
+            for (DeferredResult<String> dr : results) {
+                dr.setResult("Hello " + msg);
+                results.remove(dr);
+            }
+            return "OK";
+        }
     }
 
     public static void main(String[] args) {
