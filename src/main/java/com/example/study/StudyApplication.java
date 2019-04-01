@@ -3,9 +3,14 @@ package com.example.study;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.concurrent.Callable;
 
 /*
  Servlet 3.0: 비동기 서블릿
@@ -33,19 +38,30 @@ public class StudyApplication {
     @RestController
     public static class MyController {
         @GetMapping("/callable")
-//        public Callable<String> callable() {
-//            log.info("callable");
-//            return () -> {
-//                log.info("async");
-//                Thread.sleep(2000);
-//                return "hello";
-//            };
-//        }
-        public String callable() throws InterruptedException {
-            log.info("async");
-            Thread.sleep(2000);
-            return "hello";
+        public Callable<String> callable() {
+            log.info("callable");
+            return () -> {
+                log.info("async");
+                Thread.sleep(2000);
+                return "hello";
+            };
         }
+
+//        public String callable() throws InterruptedException {
+//            log.info("async");
+//            Thread.sleep(2000);
+//            return "hello";
+//        }
+    }
+
+    @Bean
+    ThreadPoolTaskExecutor tp() {
+        ThreadPoolTaskExecutor te = new ThreadPoolTaskExecutor();
+        te.setCorePoolSize(100);
+        te.setQueueCapacity(50);
+        te.setMaxPoolSize(200);
+        te.setThreadNamePrefix("workThread");
+        return te;
     }
 
     public static void main(String[] args) {
