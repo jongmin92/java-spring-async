@@ -19,7 +19,7 @@ public class LoadTest {
         ExecutorService es = Executors.newFixedThreadPool(100);
 
         RestTemplate rt = new RestTemplate();
-        String url = "http://localhost:8080/dr";
+        String url = "http://localhost:8080/rest";
 
         StopWatch main = new StopWatch();
         main.start();
