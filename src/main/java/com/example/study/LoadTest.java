@@ -37,7 +37,7 @@ public class LoadTest {
                 String res = rt.getForObject(url, String.class, idx);
 
                 sw.stop();
-                log.info("Elapsed: {} {} / {}", idx, sw.getTotalTimeSeconds(), res);
+                log.info("idx: {}, Elapsed: {} -> res: {}", idx, sw.getTotalTimeSeconds(), res);
                 // IDE가 callable임을 인식할 수 있도록 return
                 return null;
             });

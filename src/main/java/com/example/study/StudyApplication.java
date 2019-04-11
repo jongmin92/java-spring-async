@@ -5,6 +5,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 
 /*
  앞단에 서블릿 요청을 받아서 서블릿 스레드를 할당받고 하는것을 비동기로 효율적으로 처리하도록 만들었는데,
@@ -26,9 +27,13 @@ public class StudyApplication {
 
     @RestController
     public static class MyController {
+        RestTemplate rt = new RestTemplate();
+
         @GetMapping("/rest")
-        public String rest() {
-            return "rest";
+        public String rest(int idx) {
+            String res = rt.getForObject("http://localhost:8081/service?req={req}", String.class,
+                    "hello" + idx);
+            return res;
         }
     }
 
