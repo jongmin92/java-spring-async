@@ -13,7 +13,13 @@ public class RemoteService {
         @GetMapping("/service")
         public String service(String req) throws InterruptedException {
             Thread.sleep(2000);
-            return req + "/service";
+            return req + "/service1";
+        }
+
+        @GetMapping("/service2")
+        public String service2(String req) throws InterruptedException {
+            Thread.sleep(2000);
+            return req + "/service2";
         }
     }
 
