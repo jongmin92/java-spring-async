@@ -10,6 +10,7 @@ import org.springframework.util.concurrent.ListenableFuture;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.AsyncRestTemplate;
+import org.springframework.web.context.request.async.DeferredResult;
 
 /*
  앞단에 서블릿 요청을 받아서 서블릿 스레드를 할당받고 하는것을 비동기로 효율적으로 처리하도록 만들었는데,
@@ -38,9 +39,20 @@ public class StudyApplication {
          tomcat 스레드 1개, netty가 필요로 하는 약간의 스레드가 추가된 것 말고는 스레드 수가 크게 증가하지 않음
          */
         @GetMapping("/rest")
-        public ListenableFuture<ResponseEntity<String>> rest(int idx) {
-            return rt.getForEntity("http://localhost:8081/service?req={req}",
+        public DeferredResult<String> rest(int idx) {
+            // 오브젝트를 만들어서 컨트롤러에서 리턴하면 언제가 될지 모르지만 언제인가 DeferredResult에 값을 써주면
+            // 그 값을 응답으로 사용
+            DeferredResult<String> dr = new DeferredResult<>();
+
+            ListenableFuture<ResponseEntity<String>> f1 = rt.getForEntity("http://localhost:8081/service?req={req}",
                     String.class, "hello" + idx);
+            f1.addCallback(s -> {
+                dr.setResult(s.getBody() + "/work");
+            }, e -> {
+                dr.setErrorResult(e.getMessage());
+            });
+
+            return dr;
         }
     }
 
