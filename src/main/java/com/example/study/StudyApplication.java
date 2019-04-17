@@ -19,20 +19,13 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.AsyncRestTemplate;
 import org.springframework.web.context.request.async.DeferredResult;
 
+import java.util.function.Consumer;
+
 /*
- 앞단에 서블릿 요청을 받아서 서블릿 스레드를 할당받고 하는것을 비동기로 효율적으로 처리하도록 만들었는데,
- 문제는 뒷단의 작업들. 아주 빠르게 뭔가를 계산하고 리턴하는 경우라면 굳이 비동기 MVC를 걸지않고 바로 작업을 처리하고
- 리턴해도 상관없다. 그렇지만 그게 아니라 백단의 어떤 별개의 서비스들을 호출하는게 많이 있는 경우, 문제는 단순히
- 비동기를 서블릿을 사용하는 것만으로 해결할 수 없는 경우가 많이 있다.
-
- Thread Pool Hell
- 스레드 풀이 순간 요청이 급격하게 몰려오면 풀이 가득차게 된다. 추가적인 요청이 들어오면 대기 상태에 빠져 요청에 대한
- 응답이 느려지게 된다.
-
- 최근 서비스들은 하나의 요청을 처리함에 있어 다른 서버로의 요청(Network I/O)이 많아졌다. 해당 요청을 처리하는
- 하나의 스레드는 그 시간동안 대기상태에 빠지게 된다. 스레드 풀이 꽉 차버리는 현상이 발생하게 된다.
+ 이번에는 콜백핼을 어떻게 개선할지에 대해서 이야기한다.
+ ListenableFuture를 Wrapping 하는 클래스를 만들어, chainable하게 사용할 수 있는 방식으로 코드를 만들어본다.
+ 콜백핼의 문제로는 에러를 처리하는 코드가 중복이 된다는 것도 있다. 이 부분도 해결해보자.
  */
-
 @SpringBootApplication
 @EnableAsync
 @Slf4j
@@ -40,39 +33,80 @@ public class StudyApplication {
 
     @RestController
     public static class MyController {
-        // asynchronous + netty non-blocking
         AsyncRestTemplate rt = new AsyncRestTemplate(new Netty4ClientHttpRequestFactory(new NioEventLoopGroup(1)));
 
         @Autowired
         MyService myService;
 
-        /*
-         tomcat 스레드 1개, netty가 필요로 하는 약간의 스레드가 추가된 것 말고는 스레드 수가 크게 증가하지 않음
-         */
+        static final String URL1 = "http://localhost:8081/service?req={req}";
+        static final String URL2 = "http://localhost:8081/service2?req={req}";
+
         @GetMapping("/rest")
         public DeferredResult<String> rest(int idx) {
-            // 오브젝트를 만들어서 컨트롤러에서 리턴하면 언제가 될지 모르지만 언제인가 DeferredResult에 값을 써주면
-            // 그 값을 응답으로 사용
             DeferredResult<String> dr = new DeferredResult<>();
 
-            ListenableFuture<ResponseEntity<String>> f1 = rt.getForEntity("http://localhost:8081/service?req={req}", String.class, "hello" + idx);
-            f1.addCallback(s -> {
-                ListenableFuture<ResponseEntity<String>> f2 = rt.getForEntity("http://localhost:8081/service2?req={req}", String.class, s.getBody());
-                f2.addCallback(s2 -> {
-                    ListenableFuture<String> f3 = myService.work(s2.getBody());
-                    f3.addCallback(s3 -> {
-                        dr.setResult(s3);
-                    }, e -> {
-                        dr.setErrorResult(e.getMessage());
-                    });
-                }, e -> {
-                    dr.setErrorResult(e.getMessage());
-                });
-            }, e -> {
-                dr.setErrorResult(e.getMessage());
-            });
+            Completion
+                    .from(rt.getForEntity(URL1, String.class, "hello" + idx))
+                    .andAccept(s -> dr.setResult(s.getBody()));
+
+//            ListenableFuture<ResponseEntity<String>> f1 = rt.getForEntity("http://localhost:8081/service?req={req}", String.class, "hello" + idx);
+//            f1.addCallback(s -> {
+//                ListenableFuture<ResponseEntity<String>> f2 = rt.getForEntity("http://localhost:8081/service2?req={req}", String.class, s.getBody());
+//                f2.addCallback(s2 -> {
+//                    ListenableFuture<String> f3 = myService.work(s2.getBody());
+//                    f3.addCallback(s3 -> {
+//                        dr.setResult(s3);
+//                    }, e -> {
+//                        dr.setErrorResult(e.getMessage());
+//                    });
+//                }, e -> {
+//                    dr.setErrorResult(e.getMessage());
+//                });
+//            }, e -> {
+//                dr.setErrorResult(e.getMessage());
+//            });
 
             return dr;
+        }
+    }
+
+    public static class Completion {
+
+        Consumer<ResponseEntity<String>> con;
+
+        Completion next;
+
+        public Completion() {
+        }
+
+        public Completion(Consumer<ResponseEntity<String>> con) {
+            this.con = con;
+        }
+
+        public static Completion from(ListenableFuture<ResponseEntity<String>> lf) {
+            Completion c = new Completion();
+            lf.addCallback(s -> {
+                c.complete(s);
+            }, e -> {
+                c.error(e);
+            });
+            return c;
+        }
+
+        public void andAccept(Consumer<ResponseEntity<String>> con) {
+            Completion c = new Completion(con);
+            this.next = c;
+        }
+
+        void complete(ResponseEntity<String> s) {
+            if (next != null) next.run(s);
+        }
+
+        private void run(ResponseEntity<String> value) {
+            if (con != null) con.accept(value);
+        }
+
+        private void error(Throwable e) {
         }
     }
 
