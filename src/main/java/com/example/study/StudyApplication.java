@@ -20,6 +20,7 @@ import org.springframework.web.client.AsyncRestTemplate;
 import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /*
  이번에는 콜백핼을 어떻게 개선할지에 대해서 이야기한다.
@@ -47,6 +48,7 @@ public class StudyApplication {
 
             Completion
                     .from(rt.getForEntity(URL1, String.class, "hello" + idx))
+                    .andApply(s -> rt.getForEntity(URL2, String.class, s.getBody()))
                     .andAccept(s -> dr.setResult(s.getBody()));
 
 //            ListenableFuture<ResponseEntity<String>> f1 = rt.getForEntity("http://localhost:8081/service?req={req}", String.class, "hello" + idx);
@@ -74,6 +76,8 @@ public class StudyApplication {
 
         Consumer<ResponseEntity<String>> con;
 
+        Function<ResponseEntity<String>, ListenableFuture<ResponseEntity<String>>> fn;
+
         Completion next;
 
         public Completion() {
@@ -83,6 +87,10 @@ public class StudyApplication {
             this.con = con;
         }
 
+        public Completion(Function<ResponseEntity<String>, ListenableFuture<ResponseEntity<String>>> fn) {
+            this.fn = fn;
+        }
+
         public static Completion from(ListenableFuture<ResponseEntity<String>> lf) {
             Completion c = new Completion();
             lf.addCallback(s -> {
@@ -90,6 +98,12 @@ public class StudyApplication {
             }, e -> {
                 c.error(e);
             });
+            return c;
+        }
+
+        public Completion andApply(Function<ResponseEntity<String>, ListenableFuture<ResponseEntity<String>>> fn) {
+            Completion c = new Completion(fn);
+            this.next = c;
             return c;
         }
 
@@ -104,6 +118,10 @@ public class StudyApplication {
 
         private void run(ResponseEntity<String> value) {
             if (con != null) con.accept(value);
+            else if (fn != null) {
+                ListenableFuture<ResponseEntity<String>> lf = fn.apply(value);
+                lf.addCallback(s -> complete(s), e -> error(e));
+            }
         }
 
         private void error(Throwable e) {
