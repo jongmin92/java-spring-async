@@ -72,24 +72,37 @@ public class StudyApplication {
         }
     }
 
-    public static class Completion {
-
+    // 결과를 받아서 사용만 하고 끝나는 Accept 처리를 하는 Completion과,
+    // 결과를 받아서 또 다른 비동기 작업을 수행하고 그 결과를 반환하는 Apply 용 Completion으로 분리한다.
+    public static class AcceptCompletion extends Completion {
         Consumer<ResponseEntity<String>> con;
 
-        Function<ResponseEntity<String>, ListenableFuture<ResponseEntity<String>>> fn;
-
-        Completion next;
-
-        public Completion() {
-        }
-
-        public Completion(Consumer<ResponseEntity<String>> con) {
+        public AcceptCompletion(Consumer<ResponseEntity<String>> con) {
             this.con = con;
         }
 
-        public Completion(Function<ResponseEntity<String>, ListenableFuture<ResponseEntity<String>>> fn) {
+        @Override
+        public void run(ResponseEntity<String> value) {
+            con.accept(value);
+        }
+    }
+
+    public static class AsyncCompletion extends Completion {
+        Function<ResponseEntity<String>, ListenableFuture<ResponseEntity<String>>> fn;
+
+        public AsyncCompletion(Function<ResponseEntity<String>, ListenableFuture<ResponseEntity<String>>> fn) {
             this.fn = fn;
         }
+
+        @Override
+        public void run(ResponseEntity<String> value) {
+            ListenableFuture<ResponseEntity<String>> lf = fn.apply(value);
+            lf.addCallback(s -> complete(s), e -> error(e));
+        }
+    }
+
+    public static class Completion {
+        Completion next;
 
         public static Completion from(ListenableFuture<ResponseEntity<String>> lf) {
             Completion c = new Completion();
@@ -102,29 +115,24 @@ public class StudyApplication {
         }
 
         public Completion andApply(Function<ResponseEntity<String>, ListenableFuture<ResponseEntity<String>>> fn) {
-            Completion c = new Completion(fn);
+            Completion c = new AsyncCompletion(fn);
             this.next = c;
             return c;
         }
 
         public void andAccept(Consumer<ResponseEntity<String>> con) {
-            Completion c = new Completion(con);
+            Completion c = new AcceptCompletion(con);
             this.next = c;
         }
 
-        void complete(ResponseEntity<String> s) {
+        public void complete(ResponseEntity<String> s) {
             if (next != null) next.run(s);
         }
 
-        private void run(ResponseEntity<String> value) {
-            if (con != null) con.accept(value);
-            else if (fn != null) {
-                ListenableFuture<ResponseEntity<String>> lf = fn.apply(value);
-                lf.addCallback(s -> complete(s), e -> error(e));
-            }
+        public void run(ResponseEntity<String> value) {
         }
 
-        private void error(Throwable e) {
+        public void error(Throwable e) {
         }
     }
 
