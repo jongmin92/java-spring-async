@@ -49,6 +49,7 @@ public class StudyApplication {
             Completion
                     .from(rt.getForEntity(URL1, String.class, "hello" + idx))
                     .andApply(s -> rt.getForEntity(URL2, String.class, s.getBody()))
+                    .andError(e -> dr.setErrorResult(e))
                     .andAccept(s -> dr.setResult(s.getBody()));
 
 //            ListenableFuture<ResponseEntity<String>> f1 = rt.getForEntity("http://localhost:8081/service?req={req}", String.class, "hello" + idx);
@@ -87,6 +88,26 @@ public class StudyApplication {
         }
     }
 
+    public static class ErrorCompletion extends Completion {
+        Consumer<Throwable> econ;
+
+        public ErrorCompletion(Consumer<Throwable> econ) {
+            this.econ = econ;
+        }
+
+        @Override
+        public void run(ResponseEntity<String> value) {
+            if (next != null) {
+                next.run(value);
+            }
+        }
+
+        @Override
+        public void error(Throwable e) {
+            econ.accept(e);
+        }
+    }
+
     public static class AsyncCompletion extends Completion {
         Function<ResponseEntity<String>, ListenableFuture<ResponseEntity<String>>> fn;
 
@@ -120,6 +141,12 @@ public class StudyApplication {
             return c;
         }
 
+        public Completion andError(Consumer<Throwable> econ) {
+            Completion c = new ErrorCompletion(econ);
+            this.next = c;
+            return c;
+        }
+
         public void andAccept(Consumer<ResponseEntity<String>> con) {
             Completion c = new AcceptCompletion(con);
             this.next = c;
@@ -133,6 +160,7 @@ public class StudyApplication {
         }
 
         public void error(Throwable e) {
+            if (next != null) next.error(e);
         }
     }
 
