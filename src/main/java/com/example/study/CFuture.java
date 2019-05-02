@@ -17,6 +17,11 @@ public class CFuture {
         log.info("supplyAsync");
         return 1;
       })
+      // return이 CompletableFuture인 경우 thenCompose를 사용한다.
+      .thenCompose(s -> {
+        log.info("thenApply {}", s);
+        return CompletableFuture.completedFuture(s + 1);
+      })
       // 앞의 비동기 작업의 결과를 받아 사용해 새로운 값을 return 한다.
       .thenApply(s -> {
         log.info("thenApply {}", s);
