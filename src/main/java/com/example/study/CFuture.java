@@ -20,12 +20,17 @@ public class CFuture {
       // return이 CompletableFuture인 경우 thenCompose를 사용한다.
       .thenCompose(s -> {
         log.info("thenApply {}", s);
+        if (1==1) throw new RuntimeException();
         return CompletableFuture.completedFuture(s + 1);
       })
       // 앞의 비동기 작업의 결과를 받아 사용해 새로운 값을 return 한다.
       .thenApply(s -> {
         log.info("thenApply {}", s);
         return s + 1;
+      })
+      .exceptionally(e -> {
+        log.info("exceptionally");
+        return -10;
       })
       // 앞의 비동기 작업의 결과를 받아 사용하며 return이 없다.
       .thenAccept(s -> log.info("thenAccept {}", s));
